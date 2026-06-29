@@ -10,7 +10,7 @@ fn concat_single_channel_doubles() {
     for format in [Format::Binary, Format::Json] {
         let a = make_data(format, 1, 8);
         let b = make_data(format, 1, 8);
-        let out = a.concat(&[&b]).unwrap();
+        let out = a.concat([&b]).unwrap();
         assert_eq!(out.channels(), 1);
         assert_eq!(out.length(), 20);
         assert_eq!(out.duration(), 0.21333333333333335);
@@ -25,7 +25,7 @@ fn concat_single_channel_doubles() {
 fn concat_two_channel_cross_format() {
     let a = make_data(Format::Binary, 2, 8);
     let b = make_data(Format::Json, 2, 8);
-    let out = a.concat(&[&b]).unwrap();
+    let out = a.concat([&b]).unwrap();
     assert_eq!(out.channels(), 2);
     assert_eq!(out.length(), 20);
     assert_eq!(out.duration(), 0.21333333333333335);
@@ -40,7 +40,7 @@ fn concat_three_way() {
     let a = make_data(Format::Binary, 1, 8);
     let b = make_data(Format::Binary, 1, 8);
     let c = make_data(Format::Binary, 1, 8);
-    let out = a.concat(&[&b, &c]).unwrap();
+    let out = a.concat([&b, &c]).unwrap();
     assert_eq!(out.length(), 30);
     assert_eq!(out.duration(), 0.32);
 }
@@ -50,11 +50,11 @@ fn concat_incompatible_channels() {
     let mono = make_data(Format::Binary, 1, 8);
     let stereo = make_data(Format::Binary, 2, 8);
     assert_eq!(
-        mono.concat(&[&stereo]).unwrap_err(),
+        mono.concat([&stereo]).unwrap_err(),
         Error::IncompatibleWaveforms
     );
     assert_eq!(
-        stereo.concat(&[&mono]).unwrap_err(),
+        stereo.concat([&mono]).unwrap_err(),
         Error::IncompatibleWaveforms
     );
 }
@@ -64,7 +64,7 @@ fn concat_incompatible_bits() {
     let eight = make_data(Format::Binary, 1, 8);
     let sixteen = make_data(Format::Binary, 1, 16);
     assert_eq!(
-        eight.concat(&[&sixteen]).unwrap_err(),
+        eight.concat([&sixteen]).unwrap_err(),
         Error::IncompatibleWaveforms
     );
 }

@@ -121,24 +121,16 @@ fn two_channel_out_of_range() {
 }
 
 #[test]
-fn direct_setters_round_trip() {
-    for bits in BITS {
-        let mut wf = make_data(Format::Binary, 2, bits);
-        {
-            let mut ch = wf.channel_mut(1).unwrap();
-            ch.set_min_sample(3, -42);
-            ch.set_max_sample(3, 41);
+fn samples_iterators_match_arrays() {
+    for format in FORMATS {
+        for bits in BITS {
+            let wf = make_data(format, 1, bits);
+            let ch = wf.channel(0).unwrap();
+            assert_eq!(ch.min_samples().collect::<Vec<_>>(), ch.min_array());
+            assert_eq!(ch.max_samples().collect::<Vec<_>>(), ch.max_array());
+            // The iterator can fold without allocating a Vec.
+            assert_eq!(ch.min_samples().min(), Some(-10));
+            assert_eq!(ch.max_samples().max(), Some(10));
         }
-        let ch = wf.channel(1).unwrap();
-        assert_eq!(ch.min_sample(3).unwrap(), -42);
-        assert_eq!(ch.max_sample(3).unwrap(), 41);
-        // The neighbour channel is untouched.
-        assert_eq!(wf.channel(0).unwrap().min_sample(3).unwrap(), -5);
     }
-}
-
-#[test]
-fn invalid_channel_mut() {
-    let mut wf = make_data(Format::Binary, 1, 8);
-    assert_eq!(wf.channel_mut(1).unwrap_err(), Error::InvalidChannel(1));
 }

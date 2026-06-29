@@ -49,7 +49,7 @@ fn width_preserves_metadata_and_upgrades_to_v2() {
             assert_eq!(out.bits(), bits);
             // Resample output is always version 2: a 24-byte header.
             assert_eq!(
-                out.to_array_buffer().len() - 24,
+                out.as_bytes().len() - 24,
                 5 * 2 * if bits == 8 { 1 } else { 2 }
             );
         }
@@ -118,5 +118,5 @@ fn width_to_scale_matches_json_round_trip() {
     let wf = WaveformData::from_json(&json_data(2, 8)).unwrap();
     let by_width = wf.resample(Resample::Width(5.0)).unwrap();
     let by_scale = wf.resample(Resample::Scale(1024.0)).unwrap();
-    assert_eq!(by_width.to_array_buffer(), by_scale.to_array_buffer());
+    assert_eq!(by_width.as_bytes(), by_scale.as_bytes());
 }

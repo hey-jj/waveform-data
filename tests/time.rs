@@ -17,16 +17,18 @@ fn at_time_floors() {
 #[test]
 fn time_is_exact_f64() {
     let wf = make_data(Format::Binary, 1, 8);
-    assert_eq!(wf.time(0.0), 0.0);
-    assert_eq!(wf.time(0.15), 0.0015999999999999999);
-    assert_eq!(wf.time(1.0), 0.010666666666666666);
+    // index * scale / sample_rate, evaluated left to right in f64.
+    assert_eq!(wf.time(0), 0.0);
+    assert_eq!(wf.time(1), 0.010666666666666666);
+    assert_eq!(wf.time(14), 0.14933333333333335);
+    assert_eq!(wf.time(93), 0.992);
 }
 
 #[test]
 fn at_time_time_round_trip() {
     let wf = make_data(Format::Binary, 1, 8);
     for n in [0i64, 14, 93] {
-        assert_eq!(wf.at_time(wf.time(n as f64)), n);
+        assert_eq!(wf.at_time(wf.time(n)), n);
     }
 }
 

@@ -1,4 +1,4 @@
-//! Serialization through to_json and to_array_buffer, with round-trips.
+//! Serialization through to_json and as_bytes, with round-trips.
 
 mod common;
 
@@ -48,24 +48,24 @@ fn to_json_16bit() {
 }
 
 #[test]
-fn to_array_buffer_byte_lengths() {
+fn as_bytes_byte_lengths() {
     // JSON 2-channel 8-bit: 24 header + 40 data.
     let json = WaveformData::from_json(&common::json_data(2, 8)).unwrap();
-    assert_eq!(json.to_array_buffer().len(), 64);
+    assert_eq!(json.as_bytes().len(), 64);
 
     // JSON 2-channel 16-bit: 24 + 80.
     let json16 = WaveformData::from_json(&common::json_data(2, 16)).unwrap();
-    assert_eq!(json16.to_array_buffer().len(), 104);
+    assert_eq!(json16.as_bytes().len(), 104);
 
     // Binary 1-channel 8-bit keeps its 20-byte version-1 header: 20 + 20.
     let binary = make_data(Format::Binary, 1, 8);
-    assert_eq!(binary.to_array_buffer().len(), 40);
+    assert_eq!(binary.as_bytes().len(), 40);
 }
 
 #[test]
 fn round_trip_json_2ch() {
     let original = WaveformData::from_json(&common::json_data(2, 8)).unwrap();
-    let buffer = original.to_array_buffer().to_vec();
+    let buffer = original.as_bytes().to_vec();
     let reparsed = WaveformData::from_binary(buffer).unwrap();
     assert_eq!(reparsed.length(), 10);
     assert_eq!(reparsed.bits(), 8);
@@ -87,7 +87,7 @@ fn round_trip_json_2ch() {
 #[test]
 fn round_trip_binary_1ch() {
     let original = make_data(Format::Binary, 1, 8);
-    let buffer = original.to_array_buffer().to_vec();
+    let buffer = original.as_bytes().to_vec();
     let reparsed = WaveformData::from_binary(buffer).unwrap();
     assert_eq!(reparsed.length(), 10);
     assert_eq!(reparsed.bits(), 8);
