@@ -2,7 +2,9 @@
 name = "waveform-data"
 version = "0.1.0"
 edition = "2021"
-description = "parse/resample/segment precomputed audio waveform peak data (BBC binary/JSON format)"
+description = "read, resample, and slice precomputed audio waveform peak data in the BBC binary and JSON formats"
+keywords = ["waveform", "audio", "audiowaveform", "peaks", "dsp"]
+categories = ["multimedia::audio", "parser-implementations"]
 license = "MIT"
 repository = "https://github.com/hey-jj/waveform-data"
 readme = "README.md"
