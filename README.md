@@ -42,7 +42,7 @@ assert_eq!(waveform.channel(0).unwrap().min_array(), vec![0, -10]);
 Read fields with `sample_rate`, `scale`, `bits`, `length`, `channels`,
 `duration`, `pixels_per_second`, and `seconds_per_pixel`. Read samples through
 `channel`. Reshape with `resample`, `concat`, and `slice`. Serialize with
-`to_json` and `to_array_buffer`.
+`to_json` and `as_bytes`.
 
 ## Peak generation
 

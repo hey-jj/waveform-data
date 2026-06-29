@@ -17,7 +17,8 @@ pub struct JsonWaveformData {
     pub channels: Option<i32>,
     /// Audio samples per second.
     pub sample_rate: i32,
-    /// Audio samples summarized per data point.
+    /// Audio samples summarized per data point. This is the same value the
+    /// instance reports through [`WaveformData::scale`](crate::WaveformData::scale).
     pub samples_per_pixel: i32,
     /// Bits per stored sample. Only exactly 8 selects 8-bit storage.
     pub bits: i32,
