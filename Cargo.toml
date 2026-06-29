@@ -1,0 +1,10 @@
+[package]
+name = "waveform-data"
+version = "0.1.0"
+edition = "2021"
+description = "parse/resample/segment precomputed audio waveform peak data (BBC binary/JSON format)"
+license = "MIT"
+repository = "https://github.com/hey-jj/waveform-data"
+readme = "README.md"
+
+[dependencies]
