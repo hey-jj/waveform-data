@@ -38,7 +38,7 @@
 //! Read samples through [`WaveformData::channel`]. Reshape with
 //! [`WaveformData::resample`], [`WaveformData::concat`], and
 //! [`WaveformData::slice`]. Serialize with [`WaveformData::to_json`] and
-//! [`WaveformData::to_array_buffer`].
+//! [`WaveformData::as_bytes`].
 //!
 //! # Peak generation
 //!
@@ -53,7 +53,7 @@ mod error;
 pub mod generator;
 mod json;
 
-pub use channel::{WaveformDataChannel, WaveformDataChannelMut};
+pub use channel::Channel;
 pub use error::Error;
 pub use generator::{generate_waveform_data, GenerateOptions};
 pub use json::JsonWaveformData;
@@ -100,9 +100,16 @@ impl WaveformData {
     /// Builds a waveform from a binary `.dat` buffer.
     ///
     /// Accepts version 1 (20-byte header, single channel) and version 2
-    /// (24-byte header). Returns [`Error::UnsupportedVersion`] for any other
-    /// version, and [`Error::UnknownDataFormat`] if the buffer is too short to
-    /// hold a version field.
+    /// (24-byte header).
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::UnknownDataFormat`] when the buffer is shorter than the version
+    ///   field or shorter than the full header for its version.
+    /// - [`Error::UnsupportedVersion`] for any version other than 1 or 2.
+    /// - [`Error::DataLengthMismatch`] when the `length` header field claims more
+    ///   data points than the buffer can hold. This rejects a truncated or
+    ///   inflated buffer up front so the sample accessors never read past the end.
     pub fn from_binary(data: impl Into<Vec<u8>>) -> Result<Self, Error> {
         let data = data.into();
         if data.len() < 4 {
@@ -113,6 +120,28 @@ impl WaveformData {
             return Err(Error::UnsupportedVersion);
         }
         let offset = if version == 2 { 24 } else { 20 };
+        if data.len() < offset {
+            return Err(Error::UnknownDataFormat);
+        }
+
+        // The header is present. Check the claimed data section against the bytes
+        // that follow it. length, channels, and the bit flag all live in the
+        // header now that the buffer is at least `offset` long.
+        let length = read_u32_le(&data, 16) as u64;
+        let channels = if version == 2 {
+            read_i32_le(&data, 20)
+        } else {
+            1
+        };
+        if channels <= 0 {
+            return Err(Error::DataLengthMismatch);
+        }
+        let bytes_per_sample = if read_u32_le(&data, 4) != 0 { 1u64 } else { 2 };
+        let data_bytes = length * channels as u64 * 2 * bytes_per_sample;
+        if (data.len() - offset) as u64 != data_bytes {
+            return Err(Error::DataLengthMismatch);
+        }
+
         Ok(WaveformData { data, offset })
     }
 
@@ -187,11 +216,11 @@ impl WaveformData {
     ///
     /// Returns [`Error::InvalidChannel`] when `index` is negative or at/above
     /// the channel count.
-    pub fn channel(&self, index: i32) -> Result<WaveformDataChannel<'_>, Error> {
+    pub fn channel(&self, index: i32) -> Result<Channel<'_>, Error> {
         if index >= 0 && index < self.channels() {
-            Ok(WaveformDataChannel::new(self, index))
+            Ok(Channel::new(self, index))
         } else {
-            Err(Error::InvalidChannel(index as i64))
+            Err(Error::InvalidChannel(index))
         }
     }
 
@@ -204,9 +233,11 @@ impl WaveformData {
 
     /// Returns the time in seconds for a data point index.
     ///
-    /// `index * scale / sample_rate`.
-    pub fn time(&self, index: f64) -> f64 {
-        index * self.scale() as f64 / self.sample_rate() as f64
+    /// `index * scale / sample_rate`. This is the inverse of [`at_time`](Self::at_time),
+    /// which returns an `i64` index, so the parameter is an `i64` too. The
+    /// round-trip `at_time(time(n)) == n` holds for any non-negative `n` in range.
+    pub fn time(&self, index: i64) -> f64 {
+        index as f64 * self.scale() as f64 / self.sample_rate() as f64
     }
 
     /// Reads flat sample slot `index`.
@@ -227,35 +258,6 @@ impl WaveformData {
             }
             let b = byte as usize;
             Ok(i16::from_le_bytes([self.data[b], self.data[b + 1]]) as i32)
-        }
-    }
-
-    /// Writes flat sample slot `index`. Values wrap into the sample width.
-    fn set_at(&mut self, index: i64, sample: i32) {
-        if self.bits() == 8 {
-            let byte = (self.offset as i64 + index) as usize;
-            self.data[byte] = sample as i8 as u8;
-        } else {
-            let byte = (self.offset as i64 + index * 2) as usize;
-            let bytes = (sample as i16).to_le_bytes();
-            self.data[byte] = bytes[0];
-            self.data[byte + 1] = bytes[1];
-        }
-    }
-
-    /// Returns a writer for channel `index`.
-    ///
-    /// The writer exposes `set_min_sample` and `set_max_sample`, used by the
-    /// resampler and available for direct sample edits. Values wrap into the
-    /// sample width.
-    ///
-    /// Returns [`Error::InvalidChannel`] when `index` is negative or at/above
-    /// the channel count.
-    pub fn channel_mut(&mut self, index: i32) -> Result<WaveformDataChannelMut<'_>, Error> {
-        if index >= 0 && index < self.channels() {
-            Ok(WaveformDataChannelMut::new(self, index))
-        } else {
-            Err(Error::InvalidChannel(index as i64))
         }
     }
 
@@ -286,12 +288,12 @@ impl WaveformData {
         }
     }
 
-    /// Returns the underlying binary buffer.
+    /// Returns the underlying binary buffer as a borrowed slice.
     ///
     /// For a binary input this is the original buffer with its original header,
     /// so a version-1 input keeps its 20-byte header. For a JSON input it is the
     /// converted version-2 buffer.
-    pub fn to_array_buffer(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8] {
         &self.data
     }
 
@@ -304,7 +306,6 @@ impl WaveformData {
     ///
     /// - [`Error::InvalidWidth`] / [`Error::InvalidScale`] when the value is not
     ///   positive.
-    /// - [`Error::MissingResampleOption`] when neither is usable.
     /// - [`Error::ZoomTooLow`] when the target scale is below the source scale.
     pub fn resample(&self, options: Resample) -> Result<WaveformData, Error> {
         let target_scale = self.resample_target_scale(options)?;
@@ -314,29 +315,22 @@ impl WaveformData {
     }
 
     fn resample_target_scale(&self, options: Resample) -> Result<i32, Error> {
-        let (scale_opt, width_opt) = match options {
-            Resample::Scale(s) => (Some(s), None),
-            Resample::Width(w) => (None, Some(w)),
-        };
-
-        if let Some(width) = width_opt {
-            if width <= 0.0 {
-                return Err(Error::InvalidWidth);
+        // Compute the target scale in i64. With a wide source the width divisor
+        // can floor to a value past i32::MAX, so the range check runs in i64
+        // before the result narrows.
+        let target = match options {
+            Resample::Width(width) => {
+                if width <= 0.0 {
+                    return Err(Error::InvalidWidth);
+                }
+                (self.duration() * self.sample_rate() as f64 / width).floor() as i64
             }
-        }
-        if let Some(scale) = scale_opt {
-            if scale <= 0.0 {
-                return Err(Error::InvalidScale);
+            Resample::Scale(scale) => {
+                if scale <= 0.0 {
+                    return Err(Error::InvalidScale);
+                }
+                scale as i64
             }
-        }
-        if scale_opt.is_none() && width_opt.is_none() {
-            return Err(Error::MissingResampleOption);
-        }
-
-        let target = if let Some(width) = width_opt {
-            (self.duration() * self.sample_rate() as f64 / width).floor() as i64
-        } else {
-            scale_opt.expect("scale present when width absent") as i64
         };
 
         if target < self.scale() as i64 {
@@ -355,8 +349,16 @@ impl WaveformData {
     /// scale, else [`Error::IncompatibleWaveforms`]. The result copies this
     /// waveform's header, sums the lengths, and appends each data section. The
     /// header version follows this waveform.
-    pub fn concat(&self, others: &[&WaveformData]) -> Result<WaveformData, Error> {
-        for other in others {
+    ///
+    /// `others` accepts anything that iterates over `&WaveformData`, so a slice,
+    /// an array, a `Vec`, or an iterator all work. Concatenating one waveform
+    /// reads as `a.concat([&b])`.
+    pub fn concat<'a, I>(&self, others: I) -> Result<WaveformData, Error>
+    where
+        I: IntoIterator<Item = &'a WaveformData>,
+    {
+        let others: Vec<&WaveformData> = others.into_iter().collect();
+        for other in &others {
             if self.channels() != other.channels()
                 || self.sample_rate() != other.sample_rate()
                 || self.bits() != other.bits()
@@ -369,21 +371,30 @@ impl WaveformData {
         let header_size = self.offset;
         let mut buffers: Vec<&[u8]> = Vec::with_capacity(others.len() + 1);
         buffers.push(&self.data);
-        for other in others {
+        for other in &others {
             buffers.push(&other.data);
         }
 
         let mut total_size = header_size;
-        let mut total_data_length: i32 = 0;
+        // Sum the length fields in i64. Each field is a 32-bit value, so several
+        // operands can sum past i32::MAX before the result narrows back into the
+        // 32-bit length field.
+        let mut total_data_length: i64 = 0;
         for buffer in &buffers {
-            let data_size = read_i32_le(buffer, 16);
+            // concat reuses the receiver's header offset for every operand. An
+            // operand shorter than that offset has no data region to copy, so
+            // treat it as incompatible instead of underflowing the subtraction.
+            if buffer.len() < header_size {
+                return Err(Error::IncompatibleWaveforms);
+            }
+            let data_size = read_i32_le(buffer, 16) as i64;
             total_size += buffer.len() - header_size;
             total_data_length += data_size;
         }
 
         let mut total_buffer = vec![0u8; total_size];
         total_buffer[..header_size].copy_from_slice(&self.data[..header_size]);
-        write_i32_le(&mut total_buffer, 16, total_data_length);
+        write_i32_le(&mut total_buffer, 16, total_data_length as i32);
 
         let mut offset = header_size;
         for buffer in &buffers {
@@ -549,8 +560,12 @@ impl WaveformResampler {
         }
     }
 
-    fn sample_at_pixel(&self, x: i32) -> i32 {
-        (x as f64 * self.output_samples_per_pixel as f64).floor() as i32
+    fn sample_at_pixel(&self, x: i32) -> i64 {
+        // Keep the floored product in i64. A wide output makes
+        // `x * output_samples_per_pixel` exceed i32::MAX, and an i32 cast would
+        // saturate or wrap so the pixel-boundary checks diverge from the f64
+        // reference. The downstream stop index narrows back to i32 when indexing.
+        (x as f64 * self.output_samples_per_pixel as f64).floor() as i64
     }
 
     fn write_output(&mut self, point: i32, channel: i32, min: i32, max: i32) {
@@ -577,8 +592,8 @@ impl WaveformResampler {
 
         while self.input_index < self.input_buffer_size && count < total {
             while (self.sample_at_pixel(self.output_index) as f64 / self.scale as f64).floor()
-                as i32
-                == self.input_index
+                as i64
+                == self.input_index as i64
             {
                 if self.output_index > 0 {
                     for i in 0..channels {
@@ -604,10 +619,11 @@ impl WaveformResampler {
             }
 
             let where_ = self.sample_at_pixel(self.output_index);
-            let mut stop = (where_ as f64 / self.scale as f64).floor() as i32;
-            if stop > self.input_buffer_size {
-                stop = self.input_buffer_size;
+            let mut stop = (where_ as f64 / self.scale as f64).floor() as i64;
+            if stop > self.input_buffer_size as i64 {
+                stop = self.input_buffer_size as i64;
             }
+            let stop = stop as i32;
 
             while self.input_index < stop {
                 for i in 0..channels as usize {

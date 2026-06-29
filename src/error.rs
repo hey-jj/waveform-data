@@ -15,16 +15,17 @@ pub enum Error {
     UnsupportedVersion,
     /// JSON `data` length did not match `length * 2 * channels`.
     LengthMismatch,
+    /// Binary buffer's data section did not match its header `length` and
+    /// `channels`. The buffer is truncated or its `length` field is inflated.
+    DataLengthMismatch,
     /// Channel index was negative or at/above the channel count.
-    InvalidChannel(i64),
+    InvalidChannel(i32),
     /// Sample index fell outside the stored data section.
     IndexOutOfRange,
     /// `resample` got a `width` that was not a positive value.
     InvalidWidth,
     /// `resample` got a `scale` that was not a positive value.
     InvalidScale,
-    /// `resample` got neither a `width` nor a `scale`.
-    MissingResampleOption,
     /// `resample` target scale was below the source scale.
     ZoomTooLow {
         /// Requested target scale.
@@ -58,6 +59,12 @@ impl fmt::Display for Error {
                     "WaveformData.create(): Length mismatch in JSON waveform data"
                 )
             }
+            Error::DataLengthMismatch => {
+                write!(
+                    f,
+                    "WaveformData.create(): Binary data section does not match the header length"
+                )
+            }
             Error::InvalidChannel(index) => write!(f, "Invalid channel: {index}"),
             Error::IndexOutOfRange => write!(f, "Index out of range"),
             Error::InvalidWidth => write!(
@@ -68,9 +75,6 @@ impl fmt::Display for Error {
                 f,
                 "WaveformData.resample(): scale should be a positive integer value"
             ),
-            Error::MissingResampleOption => {
-                write!(f, "WaveformData.resample(): Missing scale or width option")
-            }
             Error::ZoomTooLow { target, minimum } => write!(
                 f,
                 "WaveformData.resample(): Zoom level {target} too low, minimum: {minimum}"
