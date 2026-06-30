@@ -310,7 +310,7 @@ impl WaveformData {
     pub fn resample(&self, options: Resample) -> Result<WaveformData, Error> {
         let target_scale = self.resample_target_scale(options)?;
         let mut resampler = WaveformResampler::new(self, target_scale);
-        while !resampler.next() {}
+        resampler.run();
         WaveformData::from_binary(resampler.output_data)
     }
 
@@ -585,12 +585,10 @@ impl WaveformResampler {
         }
     }
 
-    fn next(&mut self) -> bool {
-        let mut count = 0;
-        let total = 1000;
+    fn run(&mut self) {
         let channels = self.output_channels;
 
-        while self.input_index < self.input_buffer_size && count < total {
+        while self.input_index < self.input_buffer_size {
             while (self.sample_at_pixel(self.output_index) as f64 / self.scale as f64).floor()
                 as i64
                 == self.input_index as i64
@@ -638,22 +636,15 @@ impl WaveformResampler {
                 }
                 self.input_index += 1;
             }
-
-            count += 1;
         }
 
-        if self.input_index < self.input_buffer_size {
-            false
-        } else {
-            if self.input_index != self.last_input_index {
-                for i in 0..channels {
-                    let point = self.output_index - 1;
-                    let min = self.min[i as usize];
-                    let max = self.max[i as usize];
-                    self.write_output(point, i, min, max);
-                }
+        if self.input_index != self.last_input_index {
+            for i in 0..channels {
+                let point = self.output_index - 1;
+                let min = self.min[i as usize];
+                let max = self.max[i as usize];
+                self.write_output(point, i, min, max);
             }
-            true
         }
     }
 }
@@ -718,10 +709,10 @@ fn read_u32_le(buffer: &[u8], offset: usize) -> u32 {
     ])
 }
 
-fn write_i32_le(buffer: &mut [u8], offset: usize, value: i32) {
+pub(crate) fn write_i32_le(buffer: &mut [u8], offset: usize, value: i32) {
     buffer[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
 }
 
-fn write_u32_le(buffer: &mut [u8], offset: usize, value: u32) {
+pub(crate) fn write_u32_le(buffer: &mut [u8], offset: usize, value: u32) {
     buffer[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
 }

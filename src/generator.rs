@@ -3,6 +3,8 @@
 //! Adapted from Audacity's `BlockFile::CalcSummary`. Produces a version-2
 //! binary buffer of `(min, max)` peaks.
 
+use crate::{write_i32_le, write_u32_le};
+
 const INT8_MAX: f64 = 127.0;
 const INT8_MIN: f64 = -128.0;
 const INT16_MAX: f64 = 32767.0;
@@ -165,12 +167,4 @@ fn write_block(buffer: &mut [u8], offset: &mut usize, eight_bit: bool, min: f64,
         buffer[*offset + 2..*offset + 4].copy_from_slice(&max16);
         *offset += 4;
     }
-}
-
-fn write_i32_le(buffer: &mut [u8], offset: usize, value: i32) {
-    buffer[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
-}
-
-fn write_u32_le(buffer: &mut [u8], offset: usize, value: u32) {
-    buffer[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
 }
