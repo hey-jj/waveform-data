@@ -47,8 +47,11 @@ Read fields with `sample_rate`, `scale`, `bits`, `length`, `channels`,
 ## Peak generation
 
 `generate_waveform_data` builds a version-2 buffer from PCM channels. It mixes
-down to one channel or splits per channel, and clamps to the int8 or int16
-range.
+down to one channel or splits per channel. The accumulator clamps the running
+min only at the low bound and the running max only at the high bound, so normal
+PCM at `amplitude_scale` of 1.0 stays in the int8 or int16 range. With higher
+gain or input outside `[-1.0, 1.0]` a value past the opposite bound is kept and
+wraps two's-complement on write.
 
 ```rust
 use waveform_data::{generate_waveform_data, GenerateOptions, WaveformData};

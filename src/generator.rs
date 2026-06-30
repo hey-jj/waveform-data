@@ -46,8 +46,12 @@ fn calculate_waveform_data_length(audio_sample_count: i32, scale: i32) -> i32 {
 ///
 /// For each block of `scale` consecutive samples, this records the per-channel
 /// `(min, max)` of `floor(range_max * value * amplitude_scale)` (divided by the
-/// input channel count in mixdown), clamped to the sample range. A trailing
-/// partial block is flushed with whatever accumulated.
+/// input channel count in mixdown). The running min is clamped only at the low
+/// bound and the running max only at the high bound. Normal PCM at
+/// `amplitude_scale` of 1.0 stays in range. With higher gain or input outside
+/// `[-1.0, 1.0]` a value past the opposite bound is kept and wraps
+/// two's-complement on write. A trailing partial block is flushed with whatever
+/// accumulated.
 ///
 /// Pass the result to [`WaveformData::from_binary`](crate::WaveformData::from_binary).
 pub fn generate_waveform_data(options: &GenerateOptions<'_>) -> Vec<u8> {

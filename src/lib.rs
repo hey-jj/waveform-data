@@ -235,7 +235,10 @@ impl WaveformData {
     ///
     /// `index * scale / sample_rate`. This is the inverse of [`at_time`](Self::at_time),
     /// which returns an `i64` index, so the parameter is an `i64` too. The
-    /// round-trip `at_time(time(n)) == n` holds for any non-negative `n` in range.
+    /// round-trip `at_time(time(n)) == n` holds only when `time(n)` is exactly
+    /// representable in `f64`. Otherwise the product rounds slightly low and the
+    /// floor in `at_time` can land at `n - 1` (for example `n = 27` with
+    /// `scale = 512` and `sample_rate = 48000`).
     pub fn time(&self, index: i64) -> f64 {
         index as f64 * self.scale() as f64 / self.sample_rate() as f64
     }
