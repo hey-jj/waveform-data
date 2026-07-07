@@ -30,6 +30,15 @@ fn inflated_length_is_rejected() {
 }
 
 #[test]
+fn overflowing_data_length_is_rejected() {
+    let buffer = header_only(-1, i32::MAX, false);
+    assert_eq!(
+        WaveformData::from_binary(buffer).unwrap_err(),
+        Error::DataLengthMismatch
+    );
+}
+
+#[test]
 fn exact_data_section_is_accepted() {
     // length 2, 1 channel, 8-bit: 4 data bytes after the 24-byte header.
     let mut buffer = header_only(2, 1, true);

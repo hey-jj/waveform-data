@@ -137,7 +137,11 @@ impl WaveformData {
             return Err(Error::DataLengthMismatch);
         }
         let bytes_per_sample = if read_u32_le(&data, 4) != 0 { 1u64 } else { 2 };
-        let data_bytes = length * channels as u64 * 2 * bytes_per_sample;
+        let data_bytes = length
+            .checked_mul(channels as u64)
+            .and_then(|value| value.checked_mul(2))
+            .and_then(|value| value.checked_mul(bytes_per_sample))
+            .ok_or(Error::DataLengthMismatch)?;
         if (data.len() - offset) as u64 != data_bytes {
             return Err(Error::DataLengthMismatch);
         }
@@ -326,10 +330,17 @@ impl WaveformData {
                 if width <= 0.0 {
                     return Err(Error::InvalidWidth);
                 }
-                (self.duration() * self.sample_rate() as f64 / width).floor() as i64
+                let target = (self.duration() * self.sample_rate() as f64 / width).floor();
+                if target > i32::MAX as f64 {
+                    return Err(Error::InvalidWidth);
+                }
+                target as i64
             }
             Resample::Scale(scale) => {
                 if scale <= 0.0 {
+                    return Err(Error::InvalidScale);
+                }
+                if scale > i32::MAX as f64 {
                     return Err(Error::InvalidScale);
                 }
                 scale as i64
@@ -660,7 +671,10 @@ fn convert_json_to_binary(data: &JsonWaveformData) -> Result<Vec<u8>, Error> {
     let header_size = 24usize;
     let eight_bit = data.bits == 8;
     let bytes_per_sample = if eight_bit { 1usize } else { 2 };
-    let expected_length = data.length as i64 * 2 * channels as i64;
+    let expected_length = (data.length as i64)
+        .checked_mul(2)
+        .and_then(|value| value.checked_mul(channels as i64))
+        .ok_or(Error::LengthMismatch)?;
 
     if data.data.len() as i64 != expected_length {
         return Err(Error::LengthMismatch);

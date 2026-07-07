@@ -3,7 +3,7 @@
 mod common;
 
 use common::{binary_data, json_data};
-use waveform_data::{Error, WaveformData};
+use waveform_data::{Error, JsonWaveformData, WaveformData};
 
 #[test]
 fn rejects_short_binary_as_unknown_format() {
@@ -57,6 +57,24 @@ fn unsupported_version_message() {
 fn json_length_mismatch() {
     let mut data = json_data(1, 8);
     data.data.pop();
+    assert_eq!(
+        WaveformData::from_json(&data).unwrap_err(),
+        Error::LengthMismatch
+    );
+}
+
+#[test]
+fn overflowing_json_slot_count_is_rejected() {
+    let data = JsonWaveformData {
+        version: Some(2),
+        channels: Some(i32::MIN),
+        sample_rate: 48000,
+        samples_per_pixel: 512,
+        bits: 8,
+        length: i32::MIN,
+        data: vec![],
+    };
+
     assert_eq!(
         WaveformData::from_json(&data).unwrap_err(),
         Error::LengthMismatch

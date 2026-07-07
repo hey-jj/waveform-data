@@ -3,7 +3,7 @@
 mod common;
 
 use common::{json_data, make_data, Format};
-use waveform_data::{Error, Resample, WaveformData};
+use waveform_data::{Error, JsonWaveformData, Resample, WaveformData};
 
 const FORMATS: [Format; 2] = [Format::Binary, Format::Json];
 const BITS: [i32; 2] = [8, 16];
@@ -35,6 +35,25 @@ fn invalid_options() {
             );
         }
     }
+}
+
+#[test]
+fn oversized_scale_is_invalid() {
+    let wf = WaveformData::from_json(&JsonWaveformData {
+        version: Some(2),
+        channels: Some(1),
+        sample_rate: 48000,
+        samples_per_pixel: 512,
+        bits: 8,
+        length: 1,
+        data: vec![0, 0],
+    })
+    .unwrap();
+
+    assert_eq!(
+        wf.resample(Resample::Scale(3_000_000_000.0)).unwrap_err(),
+        Error::InvalidScale
+    );
 }
 
 #[test]
