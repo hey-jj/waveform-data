@@ -1,6 +1,6 @@
 [package]
 name = "waveform-data"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "read, resample, and slice precomputed audio waveform peak data in the BBC binary and JSON formats"
 keywords = ["waveform", "audio", "audiowaveform", "peaks", "dsp"]
